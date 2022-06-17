@@ -26,15 +26,45 @@ public class BigInteger
     public static string operator -(BigInteger obj1, BigInteger obj2) => Calculator.Subtract(obj1.Value, obj2.Value);
     public static bool operator ==(BigInteger  obj1, BigInteger obj2) => obj1.Value == obj2.Value;
     public static bool operator !=(BigInteger  obj1, BigInteger obj2) => obj1.Value != obj2.Value;
-    public static bool operator >=(BigInteger  obj1, BigInteger obj2) => Calculator.OneIsBigger(obj1._value, obj2._value, true);
-    public static bool operator <=(BigInteger  obj1, BigInteger obj2) => Calculator.OneIsBigger(obj1._value, obj2._value, true) == false;
-    public static bool operator >(BigInteger   obj1, BigInteger obj2) => Calculator.OneIsBigger(obj1._value, obj2._value);
-    public static bool operator <(BigInteger   obj1, BigInteger obj2) => Calculator.OneIsBigger(obj1._value, obj2._value) == false;
+    public static bool operator >=(BigInteger  obj1, BigInteger obj2) => OneIsBigger(obj1._value, obj2._value, true);
+    public static bool operator <=(BigInteger  obj1, BigInteger obj2) => OneIsBigger(obj1._value, obj2._value, true) == false;
+    public static bool operator >(BigInteger   obj1, BigInteger obj2) => OneIsBigger(obj1._value, obj2._value);
+    public static bool operator <(BigInteger   obj1, BigInteger obj2) => OneIsBigger(obj1._value, obj2._value) == false;
 
     #endregion
 
+    /// <summary>
+    /// 第一個數字大於第二個數字
+    /// <remarks>二個陣列同長度</remarks>
+    /// </summary>
+    private static bool OneIsBigger(char[] s1TargetPadded, char[] s2TargetPadded, bool containsEquals = false)
+    {
+        for (var i = 0; i < s1TargetPadded.Length; i++)
+        {
+            if (s1TargetPadded[i] == s2TargetPadded[i])
+            {
+                if (containsEquals)
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            return s1TargetPadded[i] > s2TargetPadded[i];
+        }
+
+        return false;
+    }
+
     private static class Calculator
     {
+        /*
+         * 加減法的設計概念為：以二數的正負號來判斷，是要 二數相加或大數減小數 !
+         * 二數相加：如果二數的正負號相同，則相加
+         * 大數減小數：以大數減小數，省去多餘的退位判斷
+         */
+        
         /// <summary>
         /// 加減用查找表
         /// </summary>
@@ -58,10 +88,18 @@ public class BigInteger
             }
         }
 
-        private static bool   _s1Negative     = false;
-        private static bool   _s2Negative     = false;
-        private static int    _maxDigits      = 0;
+        private static bool _s1Negative = false;
+        private static bool _s2Negative = false;
+        private static int  _maxDigits  = 0;
+
+        /// <summary>
+        /// 補 0 後的資料
+        /// </summary>
         private static char[] _s1TargetPadded = Array.Empty<char>();
+
+        /// <summary>
+        /// 補 0 後的資料
+        /// </summary>
         private static char[] _s2TargetPadded = Array.Empty<char>();
 
         private static void Initialize(string s1, string s2)
@@ -74,6 +112,8 @@ public class BigInteger
 
             // 多一位是進位緩衝
             var maxDigits = Math.Max(s1Target.Length, s2Target.Length) + 1;
+
+            // 補 0 是為了在做運算時，不需要額外判斷
             _s1TargetPadded = s1Target.PadLeft(maxDigits, '0').ToCharArray();
             _s2TargetPadded = s2Target.PadLeft(maxDigits, '0').ToCharArray();
         }
@@ -173,30 +213,6 @@ public class BigInteger
 
                 return resultPrefix + PositivesPlus(_s1TargetPadded, _s2TargetPadded);
             }
-        }
-
-        /// <summary>
-        /// 第一個數字大於第二個數字
-        /// <remarks>二個陣列同長度</remarks>
-        /// </summary>
-        public static bool OneIsBigger(char[] s1TargetPadded, char[] s2TargetPadded, bool containsEquals = false)
-        {
-            for (var i = 0; i < s1TargetPadded.Length; i++)
-            {
-                if (s1TargetPadded[i] == s2TargetPadded[i])
-                {
-                    if (containsEquals)
-                    {
-                        return true;
-                    }
-
-                    continue;
-                }
-
-                return s1TargetPadded[i] > s2TargetPadded[i];
-            }
-
-            return false;
         }
 
         /// <summary>
