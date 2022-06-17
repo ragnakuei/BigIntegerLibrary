@@ -22,6 +22,38 @@ public class BigInteger
         }
     }
 
+    private readonly char[] _value;
+
+    private BigInteger(string value)
+    {
+        if (value == null)
+        {
+            throw new ArgumentNullException(nameof(value));
+        }
+
+        _value = value.ToCharArray();
+    }
+
+    private string Value => new string(_value);
+
+    #region Operators
+
+    public static implicit operator BigInteger(string s) => new(s);
+
+    public static implicit operator string(BigInteger d) => d.Value;
+
+    public static string operator +(BigInteger obj1, BigInteger obj2) => Plus(obj1.Value, obj2.Value);
+    public static string operator -(BigInteger obj1, BigInteger obj2) => Subtract(obj1.Value, obj2.Value);
+    public static bool operator ==(BigInteger  obj1, BigInteger obj2) => obj1.Value == obj2.Value;
+    public static bool operator !=(BigInteger  obj1, BigInteger obj2) => obj1.Value != obj2.Value;
+    public static bool operator >=(BigInteger  obj1, BigInteger obj2) => OneIsBigger(obj1._value, obj2._value, true);
+    public static bool operator <=(BigInteger  obj1, BigInteger obj2) => OneIsBigger(obj1._value, obj2._value, true) == false;
+    public static bool operator >(BigInteger   obj1, BigInteger obj2) => OneIsBigger(obj1._value, obj2._value);
+    public static bool operator <(BigInteger   obj1, BigInteger obj2) => OneIsBigger(obj1._value, obj2._value) == false;
+
+    #endregion
+
+
     public static string Plus(string s1, string s2)
     {
         var resultPrefix = string.Empty;
@@ -74,7 +106,7 @@ public class BigInteger
         }
     }
 
-    public static string? Subtract(string s1, string s2)
+    public static string Subtract(string s1, string s2)
     {
         var resultPrefix = string.Empty;
 
@@ -125,14 +157,14 @@ public class BigInteger
             if (s1Negative && s2Negative == false)
             {
                 // 負減正
-                resultPrefix = "-";    
+                resultPrefix = "-";
             }
 
             if (s1Negative == false && s2Negative)
             {
                 // 正減負    
             }
-            
+
             return resultPrefix + PositivesPlus(s1TargetPadded, s2TargetPadded);
         }
     }
@@ -141,12 +173,17 @@ public class BigInteger
     /// 第一個數字大於第二個數字
     /// <remarks>二個陣列同長度</remarks>
     /// </summary>
-    private static bool OneIsBigger(char[] s1TargetPadded, char[] s2TargetPadded)
+    private static bool OneIsBigger(char[] s1TargetPadded, char[] s2TargetPadded, bool containsEquals = false)
     {
         for (var i = 0; i < s1TargetPadded.Length; i++)
         {
             if (s1TargetPadded[i] == s2TargetPadded[i])
             {
+                if (containsEquals)
+                {
+                    return true;
+                }
+
                 continue;
             }
 
@@ -243,11 +280,5 @@ public class BigInteger
             result[index] = substractResults[1];
             AbdicateDigit(result, index - 1);
         }
-    }
-
-    private enum OperatorType
-    {
-        Positives,
-        Negatives,
     }
 }
