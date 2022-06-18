@@ -2,7 +2,7 @@ using BigIntegerLibrary;
 
 namespace TestProject.BigIntegerTests.SubtractTests;
 
-[Category("負整數相減")]
+[Category("負數相減")]
 public class NegativeSubtractTests
 {
     [Test]
@@ -11,7 +11,7 @@ public class NegativeSubtractTests
         string actual   = (BigDecimal)"-1" - "-2";
         var    expected = "1";
 
-        Assert.AreEqual(expected, actual);
+        Assert.That(actual, Is.EqualTo(expected));
     }
 
     [Test]
@@ -20,7 +20,7 @@ public class NegativeSubtractTests
         string actual   = (BigDecimal)"-1" - "-9";
         var    expected = "8";
 
-        Assert.AreEqual(expected, actual);
+        Assert.That(actual, Is.EqualTo(expected));
     }
 
     [Test]
@@ -29,6 +29,15 @@ public class NegativeSubtractTests
         string actual   = (BigDecimal)"-1" - "-99";
         var    expected = "98";
 
-        Assert.AreEqual(expected, actual);
+        Assert.That(actual, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void _負100_減_1_等於_負101()
+    {
+        string actual   = (BigDecimal)"-100" - "-1";
+        var    expected = "-99";
+
+        Assert.That(actual, Is.EqualTo(expected));
     }
 }

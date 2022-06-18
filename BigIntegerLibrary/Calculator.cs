@@ -11,7 +11,7 @@ internal static class Calculator
     /// <summary>
     /// 加減用查找表
     /// </summary>
-    private static Dictionary<string, char[]> _opeartorMappings = new();
+    private static readonly Dictionary<string, char[]> _opeartorMappings = new();
 
     static Calculator()
     {
@@ -22,7 +22,7 @@ internal static class Calculator
 
             if (i < j)
             {
-                _opeartorMappings[$"{i}-{j}"] = new char[] { '-', (10 + i - j).ToString()[0] };
+                _opeartorMappings[$"{i}-{j}"] = new[] { '-', (10 + i - j).ToString()[0] };
             }
             else
             {
@@ -31,8 +31,209 @@ internal static class Calculator
         }
     }
 
-    private static void Initialize(BigDecimal target1, BigDecimal target2)
+
+    public static BigDecimal Plus(BigDecimal target1, BigDecimal target2)
     {
+        // 確認已 Sync Padded
+        SyncPadded(target1, target2);
+        var result = new BigDecimal(target1, target2);
+
+        if (!(target1.IsNegative ^ target2.IsNegative))
+        {
+            // 正負同號
+
+            if (target1.IsNegative)
+            {
+                result.IsNegative = true;
+            }
+
+            return Plus(target1, target2, result);
+        }
+        else
+        {
+            // 正負不同號
+
+            if (IsGreaterThan(target1, target2, ignoreSign: true))
+            {
+                if (target1.IsNegative)
+                {
+                    result.IsNegative = true;
+                }
+            }
+            else
+            {
+                if (target2.IsNegative)
+                {
+                    result.IsNegative = true;
+                }
+
+                (target1, target2) = (target2, target1);
+            }
+
+            return BiggerSubtractSmaller(target1, target2, result);
+        }
+    }
+
+    public static BigDecimal Subtract(BigDecimal target1, BigDecimal target2)
+    {
+        // 確認已 Sync Padded
+        SyncPadded(target1, target2);
+        var result = new BigDecimal(target1, target2);
+
+        if (target1.IsNegative == false && target2.IsNegative == false)
+        {
+            // 正減正
+
+            if (IsGreaterThan(target1, target2, ignoreSign: true))
+            {
+            }
+            else
+            {
+                result.IsNegative = true;
+
+                (target1, target2) = (target2, target1);
+            }
+
+            return BiggerSubtractSmaller(target1, target2, result);
+        }
+        else if (target1.IsNegative && target2.IsNegative)
+        {
+            // 負減負
+
+            if (IsGreaterThan(target1, target2, ignoreSign: true))
+            {
+                result.IsNegative = true;
+            }
+            else
+            {
+                (target1, target2) = (target2, target1);
+            }
+
+            return BiggerSubtractSmaller(target1, target2, result);
+        }
+        else
+        {
+            if (target1.IsNegative && target2.IsNegative == false)
+            {
+                // 負減正
+                result.IsNegative = true;
+            }
+
+            if (target1.IsNegative == false && target2.IsNegative)
+            {
+                // 正減負    
+            }
+
+            return Plus(target1, target2, result);
+        }
+    }
+
+    /// <summary>
+    /// 正數相加
+    /// </summary>
+    private static BigDecimal Plus(BigDecimal target1, BigDecimal target2, BigDecimal result)
+    {
+        result.PaddedValue = (char[])target1.PaddedValue.Clone();
+
+        for (var i = result.PaddedValue.Length - 1; i >= 0; i--)
+        {
+            var s1Digit = result.PaddedValue[i];
+            var s2Digit = target2.PaddedValue[i];
+
+            CarryDigitPlus(result.PaddedValue, i, s1Digit, s2Digit);
+        }
+
+
+        result.GenerateValue();
+        return result;
+    }
+
+    /// <summary>
+    /// 遞迴進位處理
+    /// </summary>
+    private static void CarryDigitPlus(char[] result,
+                                       int    index,
+                                       char   s1Digit,
+                                       char   s2Digit)
+    {
+        if (index < 0)
+        {
+            return;
+        }
+
+        var sumResults = _opeartorMappings.GetValueOrDefault($"{s1Digit}+{s2Digit}");
+        if (sumResults == null)
+        {
+            throw new Exception($"{s1Digit}+{s2Digit} is not supported");
+        }
+
+        if (sumResults.Length == 1)
+        {
+            result[index] = sumResults[0];
+        }
+        else
+        {
+            result[index] = sumResults[1];
+            CarryDigitPlus(result, index - 1, result[index - 1], '1');
+        }
+    }
+
+
+    /// <summary>
+    /// 大數減小數
+    /// </summary>
+    private static BigDecimal BiggerSubtractSmaller(BigDecimal target1, BigDecimal target2, BigDecimal result)
+    {
+        result.PaddedValue = (char[])target1.PaddedValue.Clone();
+
+        for (var i = result.PaddedValue.Length - 1; i >= 0; i--)
+        {
+            var s1Digit = result.PaddedValue[i];
+            var s2Digit = target2.PaddedValue[i];
+
+            AbdicateDigitSubtract(result.PaddedValue, i, s1Digit, s2Digit);
+        }
+
+        result.GenerateValue();
+        return result;
+    }
+
+    /// <summary>
+    /// 遞迴借位處理
+    /// </summary>
+    private static bool AbdicateDigitSubtract(char[] result,
+                                              int    index,
+                                              char   s1Digit,
+                                              char   s2Digit)
+    {
+        var substractResults = _opeartorMappings[$"{s1Digit}-{s2Digit}"];
+        if (substractResults.Length == 1)
+        {
+            result[index] = substractResults[0];
+            return false;
+        }
+        else
+        {
+            result[index] = substractResults[1];
+            return AbdicateDigitSubtract(result, index - 1, result[index - 1], '1');
+        }
+    }
+
+    private static bool IsSyncPadded(BigDecimal target1, BigDecimal target2)
+    {
+        return target1.PaddedValue.Length > 0
+            && target2.PaddedValue.Length > 0
+            && target1.PaddedValue.SequenceEqual(target2.PaddedValue)
+            && target1.PaddedFloatPointIndex == target2.PaddedFloatPointIndex;
+    }
+
+    private static void SyncPadded(BigDecimal target1, BigDecimal target2)
+    {
+        if (IsSyncPadded(target1, target2))
+        {
+            return;
+        }
+
         // 整數多一位是進位緩衝
         var integerDigits = Math.Max(target1.IntegerPart.Length, target2.IntegerPart.Length) + 1;
         var floatDigits   = Math.Max(target1.FloatPart.Length, target2.FloatPart.Length);
@@ -42,256 +243,53 @@ internal static class Calculator
         target2.Padded(integerDigits, floatDigits);
     }
 
-
-    public static BigDecimal Plus(BigDecimal target1, BigDecimal target2)
+    /// <summary>
+    /// target1 是否大於 target2
+    /// </summary>
+    public static bool IsGreaterThan(BigDecimal target1,
+                                     BigDecimal target2,
+                                     bool       includeEqual = false,
+                                     bool       ignoreSign   = false)
     {
-        Initialize(target1, target2);
+        // 確認已 Sync Padded
+        SyncPadded(target1, target2);
 
-        var resultIsNegative = false;
-
-        if (!(target1.IsNegative ^ target2.IsNegative))
+        if (ignoreSign         == false
+         && target1.IsNegative == false
+         && target2.IsNegative)
         {
-            // 正負同號
-
-            if (target1.IsNegative)
-            {
-                resultIsNegative = true;
-            }
-
-            return PositivesPlus(target1, target2, resultIsNegative);
+            return false;
         }
-        else
-        {
-            // 正負不同號
 
-            if (target1.IsGreaterThan(target2))
+        var adjust = ignoreSign == false && target1.IsNegative && target2.IsNegative;
+        var result = false;
+
+        for (var i = 0; i < target1.PaddedValue.Length; i++)
+        {
+            if (target1.PaddedValue[i] == target2.PaddedValue[i])
             {
-                if (target1.IsNegative)
+                if (includeEqual)
                 {
-                    resultIsNegative = true;
-                }
-            }
-            else
-            {
-                if (target2.IsNegative)
-                {
-                    resultIsNegative = true;
+                    result = true;
+                    break;
                 }
 
-                (target1, target2) = (target2, target1);
+                continue;
             }
 
-            return BiggerSubtractSmaller(target1, target2, resultIsNegative);
-        }
-    }
-
-    public static BigDecimal Subtract(BigDecimal target1, BigDecimal target2)
-    {
-        Initialize(target1, target2);
-
-        var resultIsNegative = false;
-
-        if (target1.IsNegative == false && target2.IsNegative == false)
-        {
-            // 正減正
-
-            if (target1.IsGreaterThan(target2))
-            {
-            }
-            else
-            {
-                resultIsNegative = true;
-
-                (target1, target2) = (target2, target1);
-            }
-
-            return BiggerSubtractSmaller(target1, target2, resultIsNegative);
-        }
-        else if (target1.IsNegative && target2.IsNegative)
-        {
-            // 負減負
-
-            if (target1.IsGreaterThan(target2))
-            {
-                resultIsNegative = true;
-            }
-            else
-            {
-                (target1, target2) = (target2, target1);
-            }
-
-            return BiggerSubtractSmaller(target1, target2, resultIsNegative);
-        }
-        else
-        {
-            if (target1.IsNegative && target2.IsNegative == false)
-            {
-                // 負減正
-                resultIsNegative = true;
-            }
-
-            if (target1.IsNegative == false && target2.IsNegative)
-            {
-                // 正減負    
-            }
-
-            return PositivesPlus(target1, target2, resultIsNegative);
-        }
-    }
-
-    /// <summary>
-    /// 正整數相加
-    /// </summary>
-    /// <param name="isNegative">預期結果是否為負數</param>
-    private static BigDecimal PositivesPlus(BigDecimal target1, BigDecimal target2, bool isNegative)
-    {
-        var result = new BigDecimal
-                     {
-                         IsFloat           = target1.IsFloat || target2.IsFloat,
-                         IsNegative        = isNegative,
-                         IntegerPaddedPart = new char[target1.IntegerPaddedPart.Length],
-                         FloatPaddedPart   = new char[target1.FloatPaddedPart.Length],
-                     };
-
-        // 加浮點數
-        result.FloatPaddedPart = PositivesPlus(target1.FloatPaddedPart, target2.FloatPaddedPart, out var floatIsCarry);
-
-        // 加整數
-        result.IntegerPaddedPart = PositivesPlus(target1.IntegerPaddedPart, target2.IntegerPaddedPart, out _);
-
-        // 浮點數進位至整數的處理
-        if (floatIsCarry)
-        {
-            var integerCarryPaddedPart = new char[result.IntegerPaddedPart.Length];
-            integerCarryPaddedPart[result.IntegerPaddedPart.Length - 1] = '1';
-
-            result.IntegerPaddedPart = PositivesPlus(result.IntegerPaddedPart, integerCarryPaddedPart, out _);
+            result = (target1.PaddedValue[i] > target2.PaddedValue[i]);
+            break;
         }
 
-        result.GenerateValue();
-        return result;
-    }
+        return result ^ adjust;
 
-    /// <summary>
-    /// char[] 相加，從最低位數 (右邊) 開始加
-    /// </summary>
-    /// <param name="isCarry">最高位數是否需要進位</param>
-    /// <returns></returns>
-    private static char[] PositivesPlus(char[] target1, char[] target2, out bool isCarry)
-    {
-        var result = target1.Clone() as char[];
-        isCarry = false;
-
-        for (var i = target1.Length - 1; i >= 0; i--)
-        {
-            var s1Digit = result[i];
-            var s2Digit = target2[i];
-
-            isCarry = CarryDigit(result, i, s1Digit, s2Digit);
-        }
-
-        return result;
-    }
-
-
-    /// <summary>
-    /// 大數減小數
-    /// </summary>
-    /// <param name="isNegative">預期結果是否為負數</param>
-    private static BigDecimal BiggerSubtractSmaller(BigDecimal bigger, BigDecimal smaller, bool isNegative)
-    {
-        var result = new BigDecimal
-                     {
-                         IsFloat           = bigger.IsFloat || smaller.IsFloat,
-                         IsNegative        = isNegative,
-                         IntegerPaddedPart = new char[bigger.IntegerPaddedPart.Length],
-                         FloatPaddedPart   = new char[bigger.FloatPaddedPart.Length],
-                     };
-
-        // 減浮點數 - 忽略浮點數要大數減小數的處理
-        result.FloatPaddedPart = Subtract(bigger.FloatPaddedPart, smaller.FloatPaddedPart, out var floatIsAbdicate);
-
-        // 減整數 - 要大數減小數
-        result.IntegerPaddedPart = Subtract(bigger.IntegerPaddedPart, smaller.IntegerPaddedPart, out _);
-
-        // 浮點數相減後，跟整數借位的處理
-        if (floatIsAbdicate)
-        {
-            var integerCarryPaddedPart = new char[result.IntegerPaddedPart.Length];
-            integerCarryPaddedPart[result.IntegerPaddedPart.Length - 1] = '1';
-
-            result.IntegerPaddedPart = Subtract(result.IntegerPaddedPart, integerCarryPaddedPart, out _);
-        }
-
-        result.GenerateValue();
-        return result;
-    }
-
-    private static char[] Subtract(char[] target1, char[] target2, out bool isAbdicate)
-    {
-        var result = target1.Clone() as char[];
-        isAbdicate = false;
-
-        for (var i = 0; i < target1.Length; i++)
-        {
-            var substractResults = _opeartorMappings[$"{result[i]}-{target2[i]}"];
-            if (substractResults.Length == 1)
-            {
-                result[i] = substractResults[0];
-            }
-            else
-            {
-                result[i]  = substractResults[1];
-                isAbdicate = AbdicateDigit(result, i - 1);
-            }
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// 遞迴進位處理
-    /// <returns>最高位數是否有進位</returns>
-    /// </summary>
-    private static bool CarryDigit(char[] result,
-                                   int    index,
-                                   char   s1Digit,
-                                   char   s2Digit)
-    {
-        if (index < 0)
-        {
-            return false;
-        }
-
-        var sumResults = _opeartorMappings.GetValueOrDefault($"{s1Digit}+{s2Digit}");
-        if (sumResults.Length == 1)
-        {
-            result[index] = sumResults[0];
-            return false;
-        }
-        else
-        {
-            result[index] = sumResults[1];
-
-            return CarryDigit(result, index - 1, result[index - 1], '1');
-        }
-    }
-
-    /// <summary>
-    /// 遞迴退位處理
-    /// </summary>
-    private static bool AbdicateDigit(char[] result, int index)
-    {
-        var substractResults = _opeartorMappings[$"{result[index]}-1"];
-        if (substractResults.Length == 1)
-        {
-            result[index] = substractResults[0];
-            return false;
-        }
-        else
-        {
-            result[index] = substractResults[1];
-            return AbdicateDigit(result, index - 1);
-        }
+        // 上面結果下面語法同意
+        // 如果二數同為負數，則將結果反向
+        // if (adjust)
+        // {
+        //     return !result;
+        // }
+        //
+        // return result;
     }
 }

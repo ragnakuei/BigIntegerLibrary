@@ -8,7 +8,7 @@ public class BigDecimal
 
     private BigDecimal(string value)
     {
-        if (value == null)
+        if (string.IsNullOrWhiteSpace(value))
         {
             throw new ArgumentNullException(nameof(value));
         }
@@ -44,36 +44,47 @@ public class BigDecimal
         FloatPart   = floatPart.TrimEnd('0').ToCharArray();
     }
 
+    public BigDecimal(BigDecimal target1, BigDecimal target2)
+    {
+        IsNegative            =   false;
+        IsFloat               =   target1.IsFloat || target2.IsFloat;
+        PaddedFloatPointIndex ??= target1.PaddedFloatPointIndex ?? target2.PaddedFloatPointIndex;
+    }
+
     /// <summary>
     /// 原始資料
     /// </summary>
     private string Value { get; set; }
 
-    public bool IsNegative { get; init; }
+    public bool IsNegative { get; internal set; }
 
-    public bool IsFloat { get; init; }
+    public bool IsFloat { get; internal set; }
 
     public char[] IntegerPart { get; }
-
-    /// <summary>
-    /// 補 0 到指定位數
-    /// </summary>
-    public char[] IntegerPaddedPart { get; internal set; }
 
     public char[] FloatPart { get; }
 
     /// <summary>
-    /// 補 0 到指定位數
+    /// Padded 後的小數點 index
     /// </summary>
-    public char[] FloatPaddedPart { get; internal set; }
+    public int? PaddedFloatPointIndex { get; private set; }
 
     /// <summary>
-    /// 補 0 到指定位數 
+    /// Value Padded 後的資料，主要用於計算
     /// </summary>
-    public void Padded(int integerDigits, int floatDigits)
+    public char[] PaddedValue { get; internal set; } = Array.Empty<char>();
+
+    /// <summary>
+    /// 補 0
+    /// </summary>
+    internal void Padded(int integerDigits, int floatDigits)
     {
-        IntegerPaddedPart = new string(IntegerPart).PadLeft(integerDigits, '0').ToCharArray();
-        FloatPaddedPart   = new string(FloatPart).PadRight(floatDigits, '0').ToCharArray();
+        var integerPaddedPart = new string(IntegerPart).PadLeft(integerDigits, '0');
+        var floatPaddedPart   = new string(FloatPart).PadRight(floatDigits, '0');
+
+        PaddedFloatPointIndex = integerPaddedPart.Length;
+
+        PaddedValue = (integerPaddedPart + floatPaddedPart).ToCharArray();
     }
 
     #region Operators
@@ -85,73 +96,30 @@ public class BigDecimal
     public static BigDecimal operator -(BigDecimal obj1, BigDecimal obj2) => Calculator.Subtract(obj1, obj2);
     public static bool operator ==(BigDecimal      obj1, BigDecimal obj2) => obj1 == obj2;
     public static bool operator !=(BigDecimal      obj1, BigDecimal obj2) => obj1 != obj2;
-    public static bool operator >=(BigDecimal      obj1, BigDecimal obj2) => obj1.IsGreaterThan(obj2, true);
-    public static bool operator <=(BigDecimal      obj1, BigDecimal obj2) => obj1.IsGreaterThan(obj2, true) == false;
-    public static bool operator >(BigDecimal       obj1, BigDecimal obj2) => obj1.IsGreaterThan(obj2);
-    public static bool operator <(BigDecimal       obj1, BigDecimal obj2) => obj1.IsGreaterThan(obj2) == false;
+    public static bool operator >=(BigDecimal      obj1, BigDecimal obj2) => Calculator.IsGreaterThan(obj1, obj2, true);
+    public static bool operator <=(BigDecimal      obj1, BigDecimal obj2) => Calculator.IsGreaterThan(obj1, obj2, true) == false;
+    public static bool operator >(BigDecimal       obj1, BigDecimal obj2) => Calculator.IsGreaterThan(obj1, obj2);
+    public static bool operator <(BigDecimal       obj1, BigDecimal obj2) => Calculator.IsGreaterThan(obj1, obj2) == false;
 
     #endregion
 
-    /// <summary>
-    /// target1 是否大於 target2
-    /// </summary>
-    public bool IsGreaterThan(BigDecimal target, bool containsEquals = false)
-    {
-        // 整數部份
-        for (var i = 0; i < this.IntegerPaddedPart.Length; i++)
-        {
-            if (this.IntegerPaddedPart[i] == target.IntegerPaddedPart[i])
-            {
-                if (containsEquals)
-                {
-                    return true;
-                }
-
-                continue;
-            }
-
-            return this.IntegerPaddedPart[i] > target.IntegerPaddedPart[i];
-        }
-
-        // 小數數部份
-        for (var i = 0; i < this.FloatPaddedPart.Length; i++)
-        {
-            if (this.FloatPaddedPart[i] == target.FloatPaddedPart[i])
-            {
-                if (containsEquals)
-                {
-                    return true;
-                }
-
-                continue;
-            }
-
-            return this.FloatPaddedPart[i] > target.FloatPaddedPart[i];
-        }
-
-        return false;
-    }
-
     public void GenerateValue()
     {
-        Value = string.Format("{0}{1}",
-                              IsNegative ? "-" : "",
-                              new string(IntegerPaddedPart).TrimStart('0'));
-        if (IsFloat)
-        {
-            Value = string.Format("{0}.{1}",
-                                  Value,
-                                  new string(FloatPaddedPart).TrimEnd('0'));
-        }
+        var integerPart = PaddedValue.Take(PaddedFloatPointIndex.GetValueOrDefault()).ToArray();
+        var floatPart   = PaddedValue.Skip(PaddedFloatPointIndex.GetValueOrDefault()).ToArray();
 
-        if (Value.EndsWith("."))
-        {
-            Value = Value.Substring(0, Value.Length - 1);
-        }
+        IsFloat = floatPart.Any(c => c != '0');
 
-        if (Value == "-0")
+        Value = string.Format("{0}{1}{2}",
+                              IsNegative ? "-" : string.Empty,
+                              new string(integerPart).TrimStart('0'),
+                              IsFloat ? "." + new string(floatPart).TrimEnd('0') : string.Empty);
+
+        if (string.IsNullOrWhiteSpace(Value) || Value == "-")
         {
-            Value = "0";
+            IsFloat    = false;
+            IsNegative = false;
+            Value      = "0";
         }
     }
 }
