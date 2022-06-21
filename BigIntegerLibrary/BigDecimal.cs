@@ -67,7 +67,7 @@ public class BigDecimal
     /// <summary>
     /// Padded 後的小數點 index
     /// </summary>
-    public int? PaddedFloatPointIndex { get; private set; }
+    public int? PaddedFloatPointIndex { get; internal set; }
 
     /// <summary>
     /// Value Padded 後的資料，主要用於計算
@@ -94,6 +94,7 @@ public class BigDecimal
 
     public static BigDecimal operator +(BigDecimal obj1, BigDecimal obj2) => Calculator.Plus(obj1, obj2);
     public static BigDecimal operator -(BigDecimal obj1, BigDecimal obj2) => Calculator.Subtract(obj1, obj2);
+    public static BigDecimal operator *(BigDecimal obj1, BigDecimal obj2) => Calculator.Multiplication(obj1, obj2);
     public static bool operator ==(BigDecimal      obj1, BigDecimal obj2) => obj1 == obj2;
     public static bool operator !=(BigDecimal      obj1, BigDecimal obj2) => obj1 != obj2;
     public static bool operator >=(BigDecimal      obj1, BigDecimal obj2) => Calculator.IsGreaterThan(obj1, obj2, true);

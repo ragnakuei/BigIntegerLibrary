@@ -28,6 +28,14 @@ internal static class Calculator
             {
                 _opeartorMappings[$"{i}-{j}"] = (i - j).ToString().ToCharArray();
             }
+
+            var product = (i * j).ToString().ToCharArray();
+            if (product.Length == 1)
+            {
+                product = new[] { '0', product[0] };
+            }
+
+            _opeartorMappings[$"{i}*{j}"] = product;
         }
     }
 
@@ -35,7 +43,7 @@ internal static class Calculator
     public static BigDecimal Plus(BigDecimal target1, BigDecimal target2)
     {
         // 確認已 Sync Padded
-        SyncPadded(target1, target2);
+        SyncPadded(target1, target2, SyncMode.PlusSubstract);
         var result = new BigDecimal(target1, target2);
 
         if (!(target1.IsNegative ^ target2.IsNegative))
@@ -77,7 +85,7 @@ internal static class Calculator
     public static BigDecimal Subtract(BigDecimal target1, BigDecimal target2)
     {
         // 確認已 Sync Padded
-        SyncPadded(target1, target2);
+        SyncPadded(target1, target2, SyncMode.PlusSubstract);
         var result = new BigDecimal(target1, target2);
 
         if (target1.IsNegative == false && target2.IsNegative == false)
@@ -133,18 +141,24 @@ internal static class Calculator
     /// </summary>
     private static BigDecimal Plus(BigDecimal target1, BigDecimal target2, BigDecimal result)
     {
-        result.PaddedValue = (char[])target1.PaddedValue.Clone();
-
-        for (var i = result.PaddedValue.Length - 1; i >= 0; i--)
-        {
-            var s1Digit = result.PaddedValue[i];
-            var s2Digit = target2.PaddedValue[i];
-
-            CarryDigitPlus(result.PaddedValue, i, s1Digit, s2Digit);
-        }
-
+        result.PaddedValue = Plus(target1.PaddedValue, target2.PaddedValue);
 
         result.GenerateValue();
+        return result;
+    }
+
+    private static char[] Plus(char[] target1, char[] target2)
+    {
+        var result = (char[])target1.Clone();
+
+        for (var i = result.Length - 1; i >= 0; i--)
+        {
+            var s1Digit = result[i];
+            var s2Digit = target2[i];
+
+            CarryDigitPlus(result, i, s1Digit, s2Digit);
+        }
+
         return result;
     }
 
@@ -201,7 +215,7 @@ internal static class Calculator
     /// <summary>
     /// 遞迴借位處理
     /// </summary>
-    private static bool AbdicateDigitSubtract(char[] result,
+    private static void AbdicateDigitSubtract(char[] result,
                                               int    index,
                                               char   s1Digit,
                                               char   s2Digit)
@@ -210,12 +224,11 @@ internal static class Calculator
         if (substractResults.Length == 1)
         {
             result[index] = substractResults[0];
-            return false;
         }
         else
         {
             result[index] = substractResults[1];
-            return AbdicateDigitSubtract(result, index - 1, result[index - 1], '1');
+            AbdicateDigitSubtract(result, index - 1, result[index - 1], '1');
         }
     }
 
@@ -227,16 +240,29 @@ internal static class Calculator
             && target1.PaddedFloatPointIndex == target2.PaddedFloatPointIndex;
     }
 
-    private static void SyncPadded(BigDecimal target1, BigDecimal target2)
+    private static void SyncPadded(BigDecimal target1, BigDecimal target2, SyncMode syncMode)
     {
         if (IsSyncPadded(target1, target2))
         {
             return;
         }
 
+        var maxIntegerDigits = Math.Max(target1.IntegerPart.Length, target2.IntegerPart.Length);
+        var maxFloatDigits   = Math.Max(target1.FloatPart.Length,   target2.FloatPart.Length);
+
+        var additionalIntegerDigits = 1;
+        var additionalFloatDigits   = 0;
+
+        if (syncMode == SyncMode.Multiplication)
+        {
+            additionalIntegerDigits = maxIntegerDigits * 2;
+            additionalFloatDigits   = maxFloatDigits   * 2;
+        }
+
         // 整數多一位是進位緩衝
-        var integerDigits = Math.Max(target1.IntegerPart.Length, target2.IntegerPart.Length) + 1;
-        var floatDigits   = Math.Max(target1.FloatPart.Length, target2.FloatPart.Length);
+
+        var integerDigits = maxIntegerDigits + additionalIntegerDigits;
+        var floatDigits   = maxFloatDigits   + additionalFloatDigits;
 
         // 補 0 是為了在做運算時，不需要額外判斷 index 是否有資料
         target1.Padded(integerDigits, floatDigits);
@@ -252,7 +278,7 @@ internal static class Calculator
                                      bool       ignoreSign   = false)
     {
         // 確認已 Sync Padded
-        SyncPadded(target1, target2);
+        SyncPadded(target1, target2, SyncMode.PlusSubstract);
 
         if (ignoreSign         == false
          && target1.IsNegative == false
@@ -292,4 +318,68 @@ internal static class Calculator
         //
         // return result;
     }
+
+    public static BigDecimal Multiplication(BigDecimal target1, BigDecimal target2)
+    {
+        // 確認已 Sync Padded
+        SyncPadded(target1, target2, SyncMode.Multiplication);
+        var result = new BigDecimal(target1, target2);
+
+        result.IsNegative            = target1.IsNegative ^ target2.IsNegative;
+        result.PaddedFloatPointIndex = target1.PaddedFloatPointIndex * 2 - 1;
+        result.PaddedValue           = MultiplicationInteger(target1.PaddedValue, target2.PaddedValue);
+
+        result.GenerateValue();
+        return result;
+    }
+
+    private static char[] MultiplicationInteger(char[] target1, char[] target2)
+    {
+        // 乘法各階層資料
+        var levels = new List<char[]>();
+
+        for (var t2Index = target2.Length - 1; t2Index >= 0; t2Index--)
+        {
+            // 尾巴先補 0
+            var layer = new char[target1.Length].Concat(Enumerable.Repeat('0', target2.Length - 1 - t2Index)).ToArray();
+
+            var t2Digit    = target2[t2Index];
+            var carryDigit = '0';
+
+            for (var resultIndex = target1.Length - 1; resultIndex >= 0; resultIndex--)
+            {
+                var t1Digit = target1[resultIndex];
+
+                var productResults = _opeartorMappings[$"{t2Digit}*{t1Digit}"].Clone() as char[];
+                // 40            0               4            0
+                CarryDigitPlus(productResults, 1, carryDigit, productResults[1]);
+
+                layer[resultIndex] = productResults[1];
+                carryDigit         = productResults[0];
+            }
+
+            // 加上階層資料
+            levels.Add(layer);
+        }
+
+        var maxLength = levels.Max(x => x.Length);
+
+        // 將乘法各階層加總
+        var result = levels.Aggregate(seed: Enumerable.Repeat('0', maxLength).ToArray(),
+                                      func: (re, la) =>
+                                            {
+                                                var paddedLayout = Enumerable.Repeat('0', maxLength - la.Length).Concat(la).ToArray();
+                                                re = Plus(re, paddedLayout);
+                                                return re;
+                                            })
+                           .ToArray();
+
+        return result;
+    }
+}
+
+internal enum SyncMode
+{
+    PlusSubstract,
+    Multiplication
 }
